@@ -3,55 +3,119 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Collab Notes</title>
+    <title>SyncNote</title>
     <style>
-        body { font-family: sans-serif; display: flex; justify-content: center; height: 100vh; background: #f0f2f5; }
-        textarea { width: 80%; height: 80vh; margin-top: 20px; padding: 20px; font-size: 16px; border: 1px solid #ccc; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        body { font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; background: #f0f2f5; margin: 0; }
+        textarea { width: 80%; height: 80vh; padding: 20px; font-size: 16px; border: 1px solid #ccc; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); display: none; }
+        
+        #auth-container { background: white; padding: 30px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); text-align: center; }
+        input { display: block; width: 100%; margin-bottom: 10px; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
+        button { width: 48%; padding: 10px; cursor: pointer; border: none; border-radius: 4px; background: #007bff; color: white; margin: 1%; }
+        #error-msg { color: red; margin-top: 10px; font-size: 14px; }
     </style>
 </head>
 <body>
+
+    <div id="auth-container">
+        <h2>Welcome to SyncNote</h2>
+        <input type="text" id="username" placeholder="Username">
+        <input type="password" id="password" placeholder="Password">
+        <button onclick="handleAuth('/api/login')">Login</button>
+        <button onclick="handleAuth('/api/register')">Register</button>
+        <div id="error-msg"></div>
+    </div>
+
     <textarea id="editor" placeholder="Start typing..."></textarea>
     
     <script src="/socket.io/socket.io.js"></script>
     <script>
-        const socket = io();
         const editor = document.getElementById('editor');
+        const authContainer = document.getElementById('auth-container');
+        const errorMsg = document.getElementById('error-msg');
+        let socket;
 
-        // 1. Setup Room ID via URL parameters
-        const urlParams = new URLSearchParams(window.location.search);
-        let roomId = urlParams.get('room');
-        
-        // If no room is specified in the URL, prompt the user for one
-        if (!roomId) {
-            roomId = prompt("Enter a room name to join or create:") || 'default-room';
-            window.history.pushState({}, '', `?room=${roomId}`);
+        // 1. Handle Login and Registration
+        async function handleAuth(endpoint) {
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+
+            const res = await fetch(endpoint, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password })
+            });
+
+            const data = await res.json();
+
+            if (res.ok) {
+                if (endpoint === '/api/login') {
+                    // Save token and start editor
+                    localStorage.setItem('token', data.token);
+                    initEditor();
+                } else {
+                    errorMsg.style.color = "green";
+                    errorMsg.innerText = data.message + " You can now login.";
+                }
+            } else {
+                errorMsg.style.color = "red";
+                errorMsg.innerText = data.error;
+            }
         }
 
-        // 2. Request the document for this specific room
-        socket.emit('get-document', roomId);
+        // 2. Initialize the Collaborative Editor
+        function initEditor() {
+            const token = localStorage.getItem('token');
+            if (!token) return;
 
-        // 3. Load initial document state from database
-        socket.on('load-document', (content) => {
-            editor.value = content;
-        });
+            // Hide auth, show editor
+            authContainer.style.display = 'none';
+            editor.style.display = 'block';
 
-        // 4. Listen for typing and send changes/save requests
-        editor.addEventListener('input', (e) => {
-            const content = e.target.value;
-            socket.emit('send-changes', content);
-            
-            // Persist to database (in a real app, you'd want to debounce this!)
-            socket.emit('save-document', content);
-        });
+            // Connect to WebSocket with Auth Token
+            socket = io({
+                auth: { token: token }
+            });
 
-        // 5. Receive updates from other users in the same room
-        socket.on('receive-changes', (content) => {
-            if (editor.value !== content) {
-                const cursorPosition = editor.selectionStart; 
-                editor.value = content;
-                editor.selectionStart = editor.selectionEnd = cursorPosition; 
+            // Handle Room setup
+            const urlParams = new URLSearchParams(window.location.search);
+            let roomId = urlParams.get('room');
+            if (!roomId) {
+                roomId = prompt("Enter a room name to join or create:") || 'default-room';
+                window.history.pushState({}, '', `?room=${roomId}`);
             }
-        });
+
+            // Socket Listeners
+            socket.emit('get-document', roomId);
+
+            socket.on('load-document', (content) => {
+                editor.value = content;
+            });
+
+            editor.addEventListener('input', (e) => {
+                const content = e.target.value;
+                socket.emit('send-changes', content);
+                socket.emit('save-document', content);
+            });
+
+            socket.on('receive-changes', (content) => {
+                if (editor.value !== content) {
+                    const cursorPosition = editor.selectionStart; 
+                    editor.value = content;
+                    editor.selectionStart = editor.selectionEnd = cursorPosition; 
+                }
+            });
+
+            socket.on('connect_error', (err) => {
+                alert("Session expired. Please log in again.");
+                localStorage.removeItem('token');
+                window.location.reload();
+            });
+        }
+
+        // Auto-login if token already exists
+        if (localStorage.getItem('token')) {
+            initEditor();
+        }
     </script>
 </body>
 </html>
