@@ -17,24 +17,39 @@
         const socket = io();
         const editor = document.getElementById('editor');
 
-        // 1. Load initial document state
+        // 1. Setup Room ID via URL parameters
+        const urlParams = new URLSearchParams(window.location.search);
+        let roomId = urlParams.get('room');
+        
+        // If no room is specified in the URL, prompt the user for one
+        if (!roomId) {
+            roomId = prompt("Enter a room name to join or create:") || 'default-room';
+            window.history.pushState({}, '', `?room=${roomId}`);
+        }
+
+        // 2. Request the document for this specific room
+        socket.emit('get-document', roomId);
+
+        // 3. Load initial document state from database
         socket.on('load-document', (content) => {
             editor.value = content;
         });
 
-        // 2. Listen for typing in the textarea
+        // 4. Listen for typing and send changes/save requests
         editor.addEventListener('input', (e) => {
             const content = e.target.value;
             socket.emit('send-changes', content);
+            
+            // Persist to database (in a real app, you'd want to debounce this!)
+            socket.emit('save-document', content);
         });
 
-        // 3. Receive updates from other users
+        // 5. Receive updates from other users in the same room
         socket.on('receive-changes', (content) => {
-            // Only update if content is different to avoid cursor jumping issues
             if (editor.value !== content) {
-                const cursorPosition = editor.selectionStart; // Save cursor
+                const cursorPosition = editor.selectionStart; 
                 editor.value = content;
-                editor.selectionStart = editor.selectionEnd = cursorPosition; // Restore cursor
+                editor.selectionStart = editor.selectionEnd = cursorPosition; 
             }
         });
     </script>
