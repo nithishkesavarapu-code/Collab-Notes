@@ -1,1 +1,30 @@
+# Dependencies
 node_modules/
+figma-whiteboard/client/node_modules/
+figma-whiteboard/server/node_modules/
+package-lock.json
+
+# Environment Variables (Secure files - NEVER push these!)
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+figma-whiteboard/server/.env
+
+# Build outputs
+dist/
+figma-whiteboard/client/dist/
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS and Editor generated files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

@@ -1,58 +1,49 @@
-# SyncNote: Real-Time Collaborative Text Editor
+# Figma-Style Collaborative Whiteboard
 
-**SyncNote** is a lightweight, real-time collaborative text editor allowing multiple users to edit a document simultaneously with low latency. Built to demonstrate **concurrency handling**, **event-driven architecture**, and **secure access**, mirroring the core functionality of tools like Microsoft Loop or Google Docs.
+This repository contains a fully functional real-time collaborative whiteboard built from the ground up for instantaneous multi-user syncing.
 
-## 🚀 Key Features
-* **Real-Time Synchronization:** Updates are propagated instantly across all connected clients using WebSockets.
-* **Room Support:** Users can join or create isolated document sessions via URL parameters (e.g., `/?room=meeting-notes`).
-* **Document Persistence:** Document states are automatically saved to a MongoDB database, ensuring no data is lost when the server restarts.
-* **Secure Authentication:** User registration and login powered by JSON Web Tokens (JWT) and securely hashed passwords (bcrypt).
-* **Concurrency Handling:** Manages simultaneous edits without page refreshes.
+## Live Demo
+Check out the raw real-time engine running across multiple simulated browsers (Frames instantly synchronized via WebSockets & Redis):
+![Real-Time WebSocket Sync Demo](./demo.webp)
 
-![ScreenRecording2026-02-19005226-ezgif com-video-to-gif-converter](https://github.com/user-attachments/assets/73b6f685-410b-4a97-b252-2a48e2792c4e)
+## Architecture & Tech Stack
+- **Frontend**: React (Vite), HTML5 Canvas, Tailwind-inspired Vanilla CSS, Lucide-React icons.
+- **Backend**: Node.js, Express, Socket.io
+- **Databases**: 
+  - **Upstash (Redis)**: Serverless WebSockets Pub/Sub adapter handling realtime stroke distribution between distinct backend nodes.
+  - **Supabase (PostgreSQL)**: Permanent auto-saving of canvas pixel state.
 
-## 🛠️ Tech Stack
-* **Backend:** Node.js, Express.js
-* **Database:** MongoDB, Mongoose
-* **Communication:** Socket.io (WebSockets)
-* **Security:** JSON Web Tokens (JWT), bcryptjs
-* **Frontend:** HTML5, CSS3, Vanilla JavaScript
+## Project Structure
+The active project is entirely contained within the `figma-whiteboard` directory, split into two decoupled packages:
+* **`/figma-whiteboard/client`**: The React frontend application.
+* **`/figma-whiteboard/server`**: The Node.js WebSocket and API backend.
 
-## ⚙️ Architecture & Logic
-The application utilizes a **Client-Server architecture** with bi-directional communication and persistent state:
-1.  **Authentication:** Users log in via a REST API. The server responds with a JWT, which the client uses to authenticate the WebSocket handshake.
-2.  **Connection & Rooms:** Clients connect to a specific room. The server fetches the latest document state for that room from MongoDB and loads it for the user.
-3.  **Event Broadcasting:** When Client A types, a `send-changes` event emits the delta.
-4.  **Propagation & Persistence:** The server receives the delta, broadcasts it to all *other* clients in the same room, and asynchronously updates the database.
+*(Note: Legacy SyncNote codebase files have been archived/removed from the root directory to ensure a clean structural environment).*
 
-## 🏃‍♂️ How to Run locally
+## How to Run Locally
 
-### Prerequisites
-* Node.js (v14 or higher)
-* MongoDB (Installed and running locally on the default port `27017`)
+### 1. Database Setup
+Ensure you have created the `boards` table in your Supabase SQL editor:
+```sql
+create table public.boards (
+  id text primary key,
+  canvas_state text,
+  updated_at timestamp with time zone default timezone('utc'::text, now())
+);
+```
+Ensure your `figma-whiteboard/server/.env` file is heavily secured and populated with your Supabase keys and Upstash Redis URL.
 
-### Installation
-1.  Clone the repository:
-    ```bash
-    git clone [https://github.com/your-username/Collab-Notes.git](https://github.com/your-username/Collab-Notes.git)
-    cd Collab-Notes
-    ```
-    
-2.  Install dependencies:
-    ```bash
-    npm install
-    ```
+### 2. Start the Backend
+```bash
+cd figma-whiteboard/server
+npm start
+```
+*The WebSocket gateway will boot on port 3001.*
 
-3.  Start your local MongoDB server (if not already running as a background service).
+### 3. Start the Frontend
+```bash
+cd figma-whiteboard/client
+npm run dev
+```
 
-4.  Start the Node server:
-    ```bash
-    node server.js
-    ```
-
-5.  Open `http://localhost:3000` in two different browser tabs. Register a user, log in, and join the same room to test the real-time collaboration.
-
-## 🔮 Future Improvements (Roadmap)
-* [ ] **Rich Text Formatting:** Upgrade the raw textarea to a rich-text editor like Quill.js.
-* [ ] **Operational Transformation (OT):** Implement OT algorithms (e.g., via ShareDB) to handle complex cursor movements and advanced merge conflicts.
-* [ ] **User Dashboard:** A home screen where logged-in users can easily view, manage, and delete a list of their previously edited documents.
+Open `http://localhost:5173` in multiple browser windows or tabs. If configured correctly, any strokes drawn in window A will instantly broadcast and render in window B!
